@@ -1,0 +1,240 @@
+classDiagram
+    direction TB
+
+    class Client {
+        <<interface>>
+        +Initialize(ctx) (*InitializeResult, error)
+        +ListTools(ctx) ([]Tool, error)
+        +CallTool(ctx, name, args) (*ToolResult, error)
+        +ListResources(ctx) ([]Resource, error)
+        +ReadResource(ctx, uri) (*ResourceContent, error)
+        +ListPrompts(ctx) ([]Prompt, error)
+        +GetPrompt(ctx, name, args) ([]PromptMessage, error)
+        +Close() error
+    }
+
+    class StdioClient {
+        -config Config
+        -cmd *exec.Cmd
+        -stdin io.WriteCloser
+        -stdout io.ReadCloser
+        -pending map~interface{}~chan *Response
+        -nextID int64
+        +Start() error
+        +Initialize(ctx) (*InitializeResult, error)
+        +ListTools(ctx) ([]Tool, error)
+        +CallTool(ctx, name, args) (*ToolResult, error)
+        +ListResources(ctx) ([]Resource, error)
+        +ReadResource(ctx, uri) (*ResourceContent, error)
+        +ListPrompts(ctx) ([]Prompt, error)
+        +GetPrompt(ctx, name, args) ([]PromptMessage, error)
+        +Close() error
+    }
+
+    class HTTPClient {
+        -config Config
+        -httpClient *http.Client
+        -pending map~interface{}~chan *Response
+        -nextID int64
+        -messageEndpoint string
+        +Connect(ctx) error
+        +Initialize(ctx) (*InitializeResult, error)
+        +ListTools(ctx) ([]Tool, error)
+        +CallTool(ctx, name, args) (*ToolResult, error)
+        +ListResources(ctx) ([]Resource, error)
+        +ReadResource(ctx, uri) (*ResourceContent, error)
+        +ListPrompts(ctx) ([]Prompt, error)
+        +GetPrompt(ctx, name, args) ([]PromptMessage, error)
+        +Close() error
+    }
+
+    Client <|.. StdioClient : implements
+    Client <|.. HTTPClient : implements
+
+    class Server {
+        <<interface>>
+        +RegisterTool(tool, handler)
+        +RegisterResource(resource, handler)
+        +RegisterPrompt(prompt, handler)
+        +Serve(ctx) error
+        +ServerInfo() ServerInfo
+        +Capabilities() ServerCapabilities
+    }
+
+    class StdioServer {
+        -info ServerInfo
+        -tools map~string~*toolEntry
+        -resources map~string~*resourceEntry
+        -prompts map~string~*promptEntry
+        -stdin io.Reader
+        -stdout io.Writer
+        +SetIO(stdin, stdout)
+        +RegisterTool(tool, handler)
+        +RegisterResource(resource, handler)
+        +RegisterPrompt(prompt, handler)
+        +Serve(ctx) error
+        +ServerInfo() ServerInfo
+        +Capabilities() ServerCapabilities
+    }
+
+    class HTTPServer {
+        -info ServerInfo
+        -config HTTPServerConfig
+        -tools map~string~*toolEntry
+        -resources map~string~*resourceEntry
+        -prompts map~string~*promptEntry
+        -clients map~string~*sseClient
+        -activeConns int64
+        +RegisterTool(tool, handler)
+        +RegisterResource(resource, handler)
+        +RegisterPrompt(prompt, handler)
+        +Serve(ctx) error
+        +Handler() http.Handler
+        +ServerInfo() ServerInfo
+        +Capabilities() ServerCapabilities
+    }
+
+    Server <|.. StdioServer : implements
+    Server <|.. HTTPServer : implements
+
+    class ToolHandler {
+        <<function>>
+        (ctx, args) (*ToolResult, error)
+    }
+
+    class ResourceHandler {
+        <<function>>
+        (ctx, uri) (*ResourceContent, error)
+    }
+
+    class PromptHandler {
+        <<function>>
+        (ctx, args) ([]PromptMessage, error)
+    }
+
+    StdioServer --> ToolHandler : uses
+    StdioServer --> ResourceHandler : uses
+    StdioServer --> PromptHandler : uses
+    HTTPServer --> ToolHandler : uses
+    HTTPServer --> ResourceHandler : uses
+    HTTPServer --> PromptHandler : uses
+
+    class Adapter {
+        <<interface>>
+        +Name() string
+        +Config() map~string~interface{}
+        +Start(ctx) error
+        +Stop(ctx) error
+        +HealthCheck(ctx) error
+    }
+
+    class BaseAdapter {
+        +AdapterName string
+        +ServerCfg ServerConfig
+        -state State
+        +Name() string
+        +Config() map~string~interface{}
+        +State() State
+        +SetState(s)
+    }
+
+    class StdioAdapter {
+        -cmd *exec.Cmd
+        +Start(ctx) error
+        +Stop(ctx) error
+        +HealthCheck(ctx) error
+    }
+
+    class DockerAdapter {
+        +Container ContainerConfig
+        -containerID string
+        +Start(ctx) error
+        +Stop(ctx) error
+        +HealthCheck(ctx) error
+    }
+
+    class HTTPAdapter {
+        -httpClient *http.Client
+        +Start(ctx) error
+        +Stop(ctx) error
+        +HealthCheck(ctx) error
+    }
+
+    BaseAdapter <|-- StdioAdapter : embeds
+    BaseAdapter <|-- DockerAdapter : embeds
+    BaseAdapter <|-- HTTPAdapter : embeds
+    Adapter <|.. StdioAdapter : implements
+    Adapter <|.. DockerAdapter : implements
+    Adapter <|.. HTTPAdapter : implements
+
+    class Registry {
+        -adapters map~string~Adapter
+        +Register(adapter) error
+        +Unregister(name) error
+        +Get(name) (Adapter, bool)
+        +List() []string
+        +Count() int
+        +StartAll(ctx) error
+        +StopAll(ctx) error
+        +HealthCheckAll(ctx) map~string~error
+    }
+
+    Registry --> Adapter : manages
+
+    class Request {
+        +JSONRPC string
+        +ID interface{}
+        +Method string
+        +Params json.RawMessage
+        +IsNotification() bool
+    }
+
+    class Response {
+        +JSONRPC string
+        +ID interface{}
+        +Result json.RawMessage
+        +Error *RPCError
+        +IsError() bool
+    }
+
+    class RPCError {
+        +Code int
+        +Message string
+        +Data interface{}
+        +Error() string
+    }
+
+    Response --> RPCError : contains
+
+    class Tool {
+        +Name string
+        +Description string
+        +InputSchema map
+    }
+
+    class ToolResult {
+        +Content []ContentBlock
+        +IsError bool
+    }
+
+    class Resource {
+        +URI string
+        +Name string
+        +Description string
+        +MimeType string
+    }
+
+    class Prompt {
+        +Name string
+        +Description string
+        +Arguments []PromptArgument
+    }
+
+    StdioClient ..> Request : sends
+    StdioClient ..> Response : receives
+    HTTPClient ..> Request : sends
+    HTTPClient ..> Response : receives
+    StdioServer ..> Request : receives
+    StdioServer ..> Response : sends
+    HTTPServer ..> Request : receives
+    HTTPServer ..> Response : sends

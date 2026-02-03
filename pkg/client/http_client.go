@@ -29,7 +29,8 @@ type HTTPClient struct {
 	pendingMu sync.RWMutex
 
 	// messageEndpoint is discovered from the SSE connection.
-	messageEndpoint string
+	messageEndpoint   string
+	messageEndpointMu sync.RWMutex
 }
 
 // NewHTTPClient creates a new HTTP/SSE-based MCP client.
@@ -129,7 +130,9 @@ func (c *HTTPClient) readSSE(body io.ReadCloser) {
 func (c *HTTPClient) handleSSEEvent(eventType, data string) {
 	switch eventType {
 	case "endpoint":
+		c.messageEndpointMu.Lock()
 		c.messageEndpoint = data
+		c.messageEndpointMu.Unlock()
 	case "message", "":
 		var resp protocol.Response
 		if err := json.Unmarshal([]byte(data), &resp); err != nil {
@@ -182,8 +185,12 @@ func (c *HTTPClient) sendRequest(
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
+	c.messageEndpointMu.RLock()
+	endpoint := c.messageEndpoint
+	c.messageEndpointMu.RUnlock()
+
 	httpReq, err := http.NewRequestWithContext(
-		ctx, http.MethodPost, c.messageEndpoint, bytes.NewReader(data),
+		ctx, http.MethodPost, endpoint, bytes.NewReader(data),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)

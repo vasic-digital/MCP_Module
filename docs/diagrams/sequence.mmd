@@ -1,0 +1,48 @@
+sequenceDiagram
+    participant App as Application
+    participant Client as client.Client
+    participant Transport as Transport<br/>(stdio/HTTP)
+    participant Server as server.Server
+    participant Handler as ToolHandler
+
+    Note over App,Handler: Phase 1: Initialization
+
+    App->>Client: Initialize(ctx)
+    Client->>Transport: JSON-RPC request<br/>method: "initialize"
+    Transport->>Server: Parse request
+    Server->>Server: Build ServerCapabilities<br/>from registered handlers
+    Server->>Transport: JSON-RPC response<br/>InitializeResult
+    Transport->>Client: Parse response
+    Client->>Transport: JSON-RPC notification<br/>method: "notifications/initialized"
+    Transport->>Server: Parse notification
+    Note over Server: No response for notifications
+    Client->>App: *InitializeResult, nil
+
+    Note over App,Handler: Phase 2: Tool Discovery
+
+    App->>Client: ListTools(ctx)
+    Client->>Transport: JSON-RPC request<br/>method: "tools/list"
+    Transport->>Server: Parse request
+    Server->>Server: Collect registered tools
+    Server->>Transport: JSON-RPC response<br/>{tools: [...]}
+    Transport->>Client: Parse response
+    Client->>App: []Tool, nil
+
+    Note over App,Handler: Phase 3: Tool Invocation
+
+    App->>Client: CallTool(ctx, "greet", args)
+    Client->>Transport: JSON-RPC request<br/>method: "tools/call"<br/>params: {name, arguments}
+    Transport->>Server: Parse request
+    Server->>Server: Look up tool "greet"
+    Server->>Handler: handler(ctx, args)
+    Handler->>Handler: Execute tool logic
+    Handler->>Server: *ToolResult, nil
+    Server->>Transport: JSON-RPC response<br/>ToolResult
+    Transport->>Client: Parse response
+    Client->>App: *ToolResult, nil
+
+    Note over App,Handler: Phase 4: Cleanup
+
+    App->>Client: Close()
+    Client->>Transport: Close connection
+    Note over Transport: stdio: kill process<br/>HTTP: cancel SSE

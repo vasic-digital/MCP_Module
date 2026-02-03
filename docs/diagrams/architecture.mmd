@@ -1,0 +1,45 @@
+graph TD
+    subgraph "digital.vasic.mcp"
+        protocol["pkg/protocol<br/><i>MCP types, JSON-RPC 2.0</i>"]
+        client["pkg/client<br/><i>StdioClient, HTTPClient</i>"]
+        server["pkg/server<br/><i>StdioServer, HTTPServer</i>"]
+        config["pkg/config<br/><i>ServerConfig, ContainerConfig</i>"]
+        adapter["pkg/adapter<br/><i>StdioAdapter, DockerAdapter, HTTPAdapter</i>"]
+        registry["pkg/registry<br/><i>Thread-safe adapter registry</i>"]
+    end
+
+    client -->|imports| protocol
+    server -->|imports| protocol
+    adapter -->|imports| config
+
+    subgraph "External Dependencies"
+        uuid["github.com/google/uuid"]
+        testify["github.com/stretchr/testify<br/><i>test only</i>"]
+    end
+
+    server -->|imports| uuid
+
+    subgraph "Consumer Application"
+        app["Application Code"]
+    end
+
+    app -->|"creates clients"| client
+    app -->|"creates servers"| server
+    app -->|"loads config"| config
+    app -->|"creates adapters"| adapter
+    app -->|"manages lifecycle"| registry
+
+    %% Adapter implements registry.Adapter interface
+    adapter -.->|"implements<br/>registry.Adapter"| registry
+
+    classDef foundation fill:#e1f5fe,stroke:#0288d1,stroke-width:2px
+    classDef transport fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef infra fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+    classDef external fill:#fff3e0,stroke:#f57c00,stroke-width:1px
+    classDef consumer fill:#fce4ec,stroke:#c62828,stroke-width:1px
+
+    class protocol foundation
+    class client,server transport
+    class config,adapter,registry infra
+    class uuid,testify external
+    class app consumer
