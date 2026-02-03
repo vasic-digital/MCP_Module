@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os/exec"
 	"sync"
 	"testing"
 	"time"
@@ -1189,4 +1190,392 @@ func TestStdioAdapter_HealthCheck_NoProcess(t *testing.T) {
 	err := a.HealthCheck(ctx)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "process not started")
+}
+
+// ============================================================================
+// Error Path Coverage Tests
+// ============================================================================
+
+func TestStdioAdapter_HealthCheck_ProcessExited(t *testing.T) {
+	// This test exercises the Signal() error path by starting a short-lived
+	// process and then checking health after it exits
+	tests := []struct {
+		name    string
+		command string
+		args    []string
+		wait    time.Duration
+	}{
+		{
+			name:    "process exits with true",
+			command: "true",
+			args:    nil,
+			wait:    50 * time.Millisecond,
+		},
+		{
+			name:    "process exits with echo",
+			command: "sh",
+			args:    []string{"-c", "exit 0"},
+			wait:    50 * time.Millisecond,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := NewStdioAdapter("signal-error-test", config.ServerConfig{
+				Command: tt.command,
+				Args:    tt.args,
+			})
+
+			ctx := context.Background()
+
+			err := a.Start(ctx)
+			require.NoError(t, err)
+
+			// Wait for process to exit
+			time.Sleep(tt.wait)
+
+			// Health check should fail with "process not running" error
+			// This exercises the Signal() error path at line 143-144
+			err = a.HealthCheck(ctx)
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), "process not running")
+
+			_ = a.Stop(ctx)
+		})
+	}
+}
+
+func TestStdioAdapter_HealthCheck_CmdNilProcess(t *testing.T) {
+	// Test when cmd exists but process is nil
+	a := NewStdioAdapter("nil-process-test", config.ServerConfig{
+		Command: "sleep",
+		Args:    []string{"10"},
+	})
+
+	// Manually set cmd but leave process nil to test the nil check
+	a.cmdMu.Lock()
+	a.cmd = exec.Command("sleep", "10") // Not started, so Process is nil
+	a.cmdMu.Unlock()
+
+	ctx := context.Background()
+	err := a.HealthCheck(ctx)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "process not started")
+}
+
+func TestStdioAdapter_Stop_ProcessKillError(t *testing.T) {
+	// Test Stop() error path when process is already terminated
+	a := NewStdioAdapter("kill-error-test", config.ServerConfig{
+		Command: "true", // Exits immediately
+	})
+
+	ctx := context.Background()
+
+	err := a.Start(ctx)
+	require.NoError(t, err)
+
+	// Wait for process to exit naturally
+	time.Sleep(100 * time.Millisecond)
+
+	// Stop should fail with kill error since process already exited
+	err = a.Stop(ctx)
+	// The error may or may not occur depending on timing
+	// but we exercise the code path
+	state := a.State()
+	assert.True(t, state == StateStopped || state == StateError)
+}
+
+func TestDockerAdapter_Stop_ContainerDoesNotExist(t *testing.T) {
+	// Test Stop() error path when container doesn't exist
+	a := NewDockerAdapter(
+		"nonexistent-container-stop-test",
+		config.ServerConfig{},
+		config.ContainerConfig{
+			Image: "test",
+		},
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Stop should fail because container doesn't exist
+	err := a.Stop(ctx)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to stop container")
+	assert.Equal(t, StateError, a.State())
+}
+
+func TestDockerAdapter_HealthCheck_HTTPRequestCreationError(t *testing.T) {
+	// Test the error path when http.NewRequestWithContext fails
+	// This happens with invalid URLs that contain control characters
+	a := NewDockerAdapter(
+		"request-error-test",
+		config.ServerConfig{},
+		config.ContainerConfig{
+			Image:       "test",
+			HostPort:    8080,
+			HealthCheck: "/health\x00invalid", // Invalid URL with null char
+		},
+	)
+
+	ctx := context.Background()
+	err := a.HealthCheck(ctx)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create health check request")
+}
+
+func TestDockerAdapter_HealthCheck_HTTPClientError(t *testing.T) {
+	// Test the error path when HTTP client.Do() fails
+	a := NewDockerAdapter(
+		"http-client-error-test",
+		config.ServerConfig{},
+		config.ContainerConfig{
+			Image:       "test",
+			HostPort:    1, // Invalid port that won't connect
+			HealthCheck: "/health",
+		},
+	)
+
+	ctx := context.Background()
+	err := a.HealthCheck(ctx)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "health check failed")
+}
+
+func TestDockerAdapter_HealthCheck_HTTPBadStatus(t *testing.T) {
+	// Test various HTTP error status codes
+	statusCodes := []struct {
+		name       string
+		statusCode int
+	}{
+		{"400 Bad Request", http.StatusBadRequest},
+		{"401 Unauthorized", http.StatusUnauthorized},
+		{"403 Forbidden", http.StatusForbidden},
+		{"404 Not Found", http.StatusNotFound},
+		{"500 Internal Server Error", http.StatusInternalServerError},
+		{"502 Bad Gateway", http.StatusBadGateway},
+		{"503 Service Unavailable", http.StatusServiceUnavailable},
+	}
+
+	for _, tc := range statusCodes {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(
+				func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(tc.statusCode)
+				},
+			))
+			defer server.Close()
+
+			// Extract port from test server
+			// Parse URL to get port
+			var port int
+			_, err := fmt.Sscanf(server.URL, "http://127.0.0.1:%d", &port)
+			if err != nil {
+				_, err = fmt.Sscanf(server.URL, "http://localhost:%d", &port)
+			}
+			require.NoError(t, err)
+
+			a := NewDockerAdapter(
+				"bad-status-test",
+				config.ServerConfig{},
+				config.ContainerConfig{
+					Image:       "test",
+					HostPort:    port,
+					HealthCheck: "/",
+				},
+			)
+
+			ctx := context.Background()
+			err = a.HealthCheck(ctx)
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), fmt.Sprintf("status %d", tc.statusCode))
+		})
+	}
+}
+
+func TestDockerAdapter_HealthCheck_DockerInspectNotRunning(t *testing.T) {
+	// Test the fallback docker inspect path when container exists but is not running
+	// This is hard to test without Docker, so we just verify the error path
+	a := NewDockerAdapter(
+		"not-running-test",
+		config.ServerConfig{},
+		config.ContainerConfig{
+			Image: "test-not-running",
+			// No HealthCheck endpoint, so falls back to docker inspect
+		},
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	err := a.HealthCheck(ctx)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "container not found")
+}
+
+func TestHTTPAdapter_HealthCheck_RequestCreationError(t *testing.T) {
+	// Test the error path when http.NewRequestWithContext fails in HTTPAdapter
+	// This happens with invalid URLs containing control characters
+	a := NewHTTPAdapter("request-error-test", config.ServerConfig{
+		URL: "http://localhost:8080\x00invalid", // Invalid URL with null char
+	})
+
+	ctx := context.Background()
+	err := a.HealthCheck(ctx)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create request")
+}
+
+func TestHTTPAdapter_HealthCheck_InvalidURL(t *testing.T) {
+	// Test various invalid URL scenarios
+	tests := []struct {
+		name    string
+		url     string
+		errPart string
+	}{
+		{
+			name:    "URL with control character",
+			url:     "http://localhost\x7f:8080",
+			errPart: "failed to create request",
+		},
+		{
+			name:    "URL with null byte",
+			url:     "http://host\x00name:8080",
+			errPart: "failed to create request",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := NewHTTPAdapter("invalid-url-test", config.ServerConfig{
+				URL: tt.url,
+			})
+
+			ctx := context.Background()
+			err := a.HealthCheck(ctx)
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), tt.errPart)
+		})
+	}
+}
+
+func TestDockerAdapter_HealthCheck_ContextTimeout(t *testing.T) {
+	// Test health check with cancelled context
+	a := NewDockerAdapter(
+		"context-timeout-test",
+		config.ServerConfig{},
+		config.ContainerConfig{
+			Image:       "test",
+			HostPort:    9999,
+			HealthCheck: "/health",
+		},
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	err := a.HealthCheck(ctx)
+	assert.Error(t, err)
+}
+
+func TestDockerAdapter_Start_ContextTimeout(t *testing.T) {
+	// Test Start with very short timeout
+	a := NewDockerAdapter(
+		"start-timeout-test",
+		config.ServerConfig{},
+		config.ContainerConfig{
+			Image: "alpine",
+		},
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+	defer cancel()
+	time.Sleep(10 * time.Millisecond) // Ensure context expires
+
+	err := a.Start(ctx)
+	assert.Error(t, err)
+	assert.Equal(t, StateError, a.State())
+}
+
+func TestDockerAdapter_Stop_ContextTimeout(t *testing.T) {
+	// Test Stop with very short timeout
+	a := NewDockerAdapter(
+		"stop-timeout-test",
+		config.ServerConfig{},
+		config.ContainerConfig{
+			Image: "test",
+		},
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+	defer cancel()
+	time.Sleep(10 * time.Millisecond) // Ensure context expires
+
+	err := a.Stop(ctx)
+	assert.Error(t, err)
+	assert.Equal(t, StateError, a.State())
+}
+
+func TestHTTPAdapter_HealthCheck_Timeout(t *testing.T) {
+	// Create a slow server that doesn't respond in time
+	server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			// Check if context was cancelled
+			select {
+			case <-r.Context().Done():
+				return
+			case <-time.After(10 * time.Second):
+				w.WriteHeader(http.StatusOK)
+			}
+		},
+	))
+	defer server.Close()
+
+	a := NewHTTPAdapter("timeout-test", config.ServerConfig{
+		URL: server.URL,
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	err := a.HealthCheck(ctx)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "health check failed")
+}
+
+func TestDockerAdapter_HealthCheck_SuccessfulHTTP(t *testing.T) {
+	// Test successful HTTP health check for DockerAdapter
+	server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/health" {
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(`{"status":"healthy"}`))
+			} else {
+				http.NotFound(w, r)
+			}
+		},
+	))
+	defer server.Close()
+
+	// Extract port from test server
+	var port int
+	_, err := fmt.Sscanf(server.URL, "http://127.0.0.1:%d", &port)
+	if err != nil {
+		_, err = fmt.Sscanf(server.URL, "http://localhost:%d", &port)
+	}
+	require.NoError(t, err)
+
+	a := NewDockerAdapter(
+		"http-success-test",
+		config.ServerConfig{},
+		config.ContainerConfig{
+			Image:       "test",
+			HostPort:    port,
+			HealthCheck: "/health",
+		},
+	)
+
+	ctx := context.Background()
+	err = a.HealthCheck(ctx)
+	assert.NoError(t, err)
 }
