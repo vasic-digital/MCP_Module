@@ -17,7 +17,7 @@ import (
 
 func TestNilAdapterRegistration(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping security test in short mode")
+		t.Skip("skipping security test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	reg := registry.New()
@@ -28,7 +28,7 @@ func TestNilAdapterRegistration(t *testing.T) {
 
 func TestEmptyAdapterNameRejection(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping security test in short mode")
+		t.Skip("skipping security test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	reg := registry.New()
@@ -44,7 +44,7 @@ func TestEmptyAdapterNameRejection(t *testing.T) {
 
 func TestDuplicateAdapterRegistration(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping security test in short mode")
+		t.Skip("skipping security test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	reg := registry.New()
@@ -61,7 +61,7 @@ func TestDuplicateAdapterRegistration(t *testing.T) {
 
 func TestUnregisterNonExistent(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping security test in short mode")
+		t.Skip("skipping security test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	reg := registry.New()
@@ -72,7 +72,7 @@ func TestUnregisterNonExistent(t *testing.T) {
 
 func TestServerConfigValidationAttacks(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping security test in short mode")
+		t.Skip("skipping security test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	tests := []struct {
@@ -118,7 +118,7 @@ func TestServerConfigValidationAttacks(t *testing.T) {
 
 func TestContainerConfigValidation(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping security test in short mode")
+		t.Skip("skipping security test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	tests := []struct {
@@ -159,7 +159,7 @@ func TestContainerConfigValidation(t *testing.T) {
 
 func TestMalformedJSONRPCHandling(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping security test in short mode")
+		t.Skip("skipping security test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	malformedPayloads := []string{
@@ -180,7 +180,7 @@ func TestMalformedJSONRPCHandling(t *testing.T) {
 
 func TestRPCErrorWithData(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping security test in short mode")
+		t.Skip("skipping security test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	errResp := protocol.NewErrorResponse(
@@ -199,7 +199,7 @@ func TestRPCErrorWithData(t *testing.T) {
 
 func TestConfigLoadUnsupportedFormat(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping security test in short mode")
+		t.Skip("skipping security test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	_, err := config.LoadFromFile("/nonexistent/file.json")
@@ -211,7 +211,7 @@ func TestConfigLoadUnsupportedFormat(t *testing.T) {
 
 func TestHealthCheckNotStartedAdapter(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping security test in short mode")
+		t.Skip("skipping security test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	a := adapter.NewHTTPAdapter("not-started", config.ServerConfig{
