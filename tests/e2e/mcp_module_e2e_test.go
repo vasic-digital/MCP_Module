@@ -18,7 +18,7 @@ import (
 
 func TestFullMCPProtocolFlowE2E(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping e2e test in short mode")
+		t.Skip("skipping e2e test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	// Step 1: Create initialize request
@@ -81,7 +81,7 @@ func TestFullMCPProtocolFlowE2E(t *testing.T) {
 
 func TestRegistryFullLifecycleE2E(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping e2e test in short mode")
+		t.Skip("skipping e2e test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	reg := registry.New()
@@ -121,7 +121,7 @@ func TestRegistryFullLifecycleE2E(t *testing.T) {
 
 func TestConfigFileLoadE2E(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping e2e test in short mode")
+		t.Skip("skipping e2e test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	tmpDir := t.TempDir()
@@ -172,7 +172,7 @@ func TestConfigFileLoadE2E(t *testing.T) {
 
 func TestToolResultContentBlocksE2E(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping e2e test in short mode")
+		t.Skip("skipping e2e test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	textBlock := protocol.NewTextContent("Hello, World!")
@@ -200,7 +200,7 @@ func TestToolResultContentBlocksE2E(t *testing.T) {
 
 func TestNormalizeIDVariantsE2E(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping e2e test in short mode")
+		t.Skip("skipping e2e test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	assert.Equal(t, int64(42), protocol.NormalizeID(float64(42)))
@@ -212,7 +212,7 @@ func TestNormalizeIDVariantsE2E(t *testing.T) {
 
 func TestAdapterStateTransitionsE2E(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping e2e test in short mode")
+		t.Skip("skipping e2e test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	a := adapter.NewHTTPAdapter("state-test", config.ServerConfig{

@@ -18,7 +18,7 @@ import (
 
 func TestConcurrentRegistryAccess(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping stress test in short mode")
+		t.Skip("skipping stress test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	reg := registry.New()
@@ -57,7 +57,7 @@ func TestConcurrentRegistryAccess(t *testing.T) {
 
 func TestConcurrentProtocolMarshaling(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping stress test in short mode")
+		t.Skip("skipping stress test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	var wg sync.WaitGroup
@@ -90,7 +90,7 @@ func TestConcurrentProtocolMarshaling(t *testing.T) {
 
 func TestConcurrentAdapterStartStop(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping stress test in short mode")
+		t.Skip("skipping stress test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	const goroutines = 60
@@ -121,7 +121,7 @@ func TestConcurrentAdapterStartStop(t *testing.T) {
 
 func TestConcurrentRegistryRegisterUnregister(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping stress test in short mode")
+		t.Skip("skipping stress test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	reg := registry.New()
@@ -151,7 +151,7 @@ func TestConcurrentRegistryRegisterUnregister(t *testing.T) {
 
 func TestConcurrentResponseCreation(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping stress test in short mode")
+		t.Skip("skipping stress test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	var wg sync.WaitGroup
@@ -182,7 +182,7 @@ func TestConcurrentResponseCreation(t *testing.T) {
 
 func TestConcurrentHealthCheckAll(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping stress test in short mode")
+		t.Skip("skipping stress test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	reg := registry.New()

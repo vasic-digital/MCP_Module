@@ -16,7 +16,7 @@ import (
 
 func TestProtocolRequestResponseIntegration(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
+		t.Skip("skipping integration test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	req, err := protocol.NewRequest(1, "tools/list", nil)
@@ -42,7 +42,7 @@ func TestProtocolRequestResponseIntegration(t *testing.T) {
 
 func TestRegistryAdapterLifecycleIntegration(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
+		t.Skip("skipping integration test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	reg := registry.New()
@@ -71,7 +71,7 @@ func TestRegistryAdapterLifecycleIntegration(t *testing.T) {
 
 func TestRegistryMultipleAdaptersIntegration(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
+		t.Skip("skipping integration test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	reg := registry.New()
@@ -100,7 +100,7 @@ func TestRegistryMultipleAdaptersIntegration(t *testing.T) {
 
 func TestServerConfigValidationIntegration(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
+		t.Skip("skipping integration test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	stdioConfig := config.ServerConfig{
@@ -132,7 +132,7 @@ func TestServerConfigValidationIntegration(t *testing.T) {
 
 func TestProtocolNotificationIntegration(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
+		t.Skip("skipping integration test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	notif, err := protocol.NewNotification("notifications/initialized", nil)
@@ -144,7 +144,7 @@ func TestProtocolNotificationIntegration(t *testing.T) {
 
 func TestProtocolErrorResponseIntegration(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
+		t.Skip("skipping integration test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	errResp := protocol.NewErrorResponse(
@@ -162,7 +162,7 @@ func TestProtocolErrorResponseIntegration(t *testing.T) {
 
 func TestAdapterConfigMapIntegration(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
+		t.Skip("skipping integration test in short mode")  // SKIP-OK: #short-mode
 	}
 
 	a := adapter.NewHTTPAdapter("my-adapter", config.ServerConfig{
