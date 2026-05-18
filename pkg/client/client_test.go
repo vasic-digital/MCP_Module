@@ -1802,7 +1802,13 @@ func TestStdioClient_Initialize_Error(t *testing.T) {
 
 	_, err := client.Initialize(ctx)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "initialization failed")
+	// Round-122 i18n migration: the RPCError flows through the
+	// Translator seam; NoopTranslator default returns the msgID
+	// verbatim per CONST-035. The original Message ("initialization
+	// failed") becomes a bundle arg the consumer-side Translator
+	// renders into a localised string. The msgID's presence here
+	// proves the error path actually invoked the seam.
+	assert.Contains(t, err.Error(), "mcp_module_rpc_error_no_data")
 }
 
 func TestStdioClient_ListTools_WithMockServer(t *testing.T) {

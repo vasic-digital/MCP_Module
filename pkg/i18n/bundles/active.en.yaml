@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Milos Vasic
+#
+# Round-122 i18n migration kickoff — MCP_Module active English bundle.
+#
+# Per CONST-046 every user-facing string MUST be externalised behind a
+# Translator. Keys use the `mcp_module_` prefix to keep MCP_Module-owned
+# message IDs distinct when a consumer composes multiple submodule
+# bundles into a single i18n registry.
+#
+# The default NoopTranslator returns the msgID verbatim — per CONST-035
+# this is positive evidence (operator sees which key failed to resolve
+# rather than an opaque empty string). Consuming projects supply richer
+# Translator implementations that load this YAML (or an LLM-augmented
+# variant) at runtime.
+
+mcp_module_rpc_error_with_data: "rpc error: code={{.code}} message={{.message}} data={{.data}}"
+mcp_module_rpc_error_no_data: "rpc error: code={{.code}} message={{.message}}"
+mcp_module_method_not_found: "method not found: {{.method}}"
+mcp_module_unknown_tool: "unknown tool: {{.name}}"
+mcp_module_unknown_resource: "unknown resource: {{.uri}}"
+mcp_module_unknown_prompt: "unknown prompt: {{.name}}"

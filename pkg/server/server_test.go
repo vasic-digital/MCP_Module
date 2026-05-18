@@ -363,7 +363,9 @@ func TestStdioServer_CallTool_Unknown(t *testing.T) {
 	err := json.Unmarshal(stdout.Bytes(), &resp)
 	require.NoError(t, err)
 	assert.True(t, resp.IsError())
-	assert.Contains(t, resp.Error.Message, "unknown tool")
+	// Round-122 i18n migration: Message holds the resolved msgID
+	// (NoopTranslator default returns msgID verbatim per CONST-035).
+	assert.Contains(t, resp.Error.Message, "mcp_module_unknown_tool")
 }
 
 func TestStdioServer_CallTool_HandlerError(t *testing.T) {
@@ -555,7 +557,8 @@ func TestStdioServer_ReadResource_Unknown(t *testing.T) {
 	var resp protocol.Response
 	_ = json.Unmarshal(stdout.Bytes(), &resp)
 	assert.True(t, resp.IsError())
-	assert.Contains(t, resp.Error.Message, "unknown resource")
+	// Round-122 i18n migration: NoopTranslator default returns msgID verbatim.
+	assert.Contains(t, resp.Error.Message, "mcp_module_unknown_resource")
 }
 
 func TestStdioServer_ReadResource_HandlerError(t *testing.T) {
@@ -724,7 +727,8 @@ func TestStdioServer_GetPrompt_Unknown(t *testing.T) {
 	var resp protocol.Response
 	_ = json.Unmarshal(stdout.Bytes(), &resp)
 	assert.True(t, resp.IsError())
-	assert.Contains(t, resp.Error.Message, "unknown prompt")
+	// Round-122 i18n migration: NoopTranslator default returns msgID verbatim.
+	assert.Contains(t, resp.Error.Message, "mcp_module_unknown_prompt")
 }
 
 func TestStdioServer_GetPrompt_HandlerError(t *testing.T) {

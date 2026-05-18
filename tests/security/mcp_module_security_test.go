@@ -187,14 +187,21 @@ func TestRPCErrorWithData(t *testing.T) {
 		1, protocol.CodeInternalError, "internal",
 		map[string]string{"detail": "stack trace"},
 	)
+	// Round-122 i18n migration: Error() routes through the package-level
+	// Translator seam; NoopTranslator default returns msgID verbatim per
+	// CONST-035. The Message field still holds the caller-supplied string
+	// ("internal" / "parse error") and feeds the bundle args at the
+	// consumer side. The with-data vs no-data branches resolve to
+	// distinct msgIDs — proving the dispatch logic survived the
+	// migration intact.
 	assert.True(t, errResp.IsError())
-	assert.Contains(t, errResp.Error.Error(), "internal")
-	assert.Contains(t, errResp.Error.Error(), "data=")
+	assert.Contains(t, errResp.Error.Error(), "mcp_module_rpc_error_with_data")
 
 	errNoData := protocol.NewErrorResponse(
 		2, protocol.CodeParseError, "parse error", nil,
 	)
-	assert.NotContains(t, errNoData.Error.Error(), "data=")
+	assert.Contains(t, errNoData.Error.Error(), "mcp_module_rpc_error_no_data")
+	assert.NotContains(t, errNoData.Error.Error(), "mcp_module_rpc_error_with_data")
 }
 
 func TestConfigLoadUnsupportedFormat(t *testing.T) {

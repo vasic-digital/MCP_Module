@@ -7,8 +7,29 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"digital.vasic.mcp/pkg/i18n"
 	"digital.vasic.mcp/pkg/protocol"
 )
+
+// translator is the package-level message-resolution seam (CONST-046,
+// round-122). Defaults to NoopTranslator so production behaviour is
+// unchanged for any caller that has not wired a project-side
+// translator; consumers swap it via SetTranslator at startup.
+//
+// Per CONST-051(B) the seam is project-not-aware: this package never
+// imports a HelixCode-specific catalogue; the consuming project is
+// responsible for providing the real Translator implementation.
+var translator i18n.Translator = i18n.NoopTranslator{}
+
+// SetTranslator wires a project-side Translator. Callers MUST invoke it
+// at startup before issuing user-facing error returns; calling it
+// concurrently with request handling is not supported.
+func SetTranslator(t i18n.Translator) {
+	if t == nil {
+		t = i18n.NoopTranslator{}
+	}
+	translator = t
+}
 
 // ToolHandler is a function that handles a tool call.
 type ToolHandler func(
@@ -98,7 +119,9 @@ func handleRequest(
 		return protocol.NewErrorResponse(
 			req.ID,
 			protocol.CodeMethodNotFound,
-			fmt.Sprintf("method not found: %s", req.Method),
+			fmt.Sprintf("%s", translator.T(ctx, "mcp_module_method_not_found", map[string]any{
+				"method": req.Method,
+			})),
 			nil,
 		)
 	}
@@ -177,7 +200,9 @@ func handleCallTool(
 	if !ok {
 		return protocol.NewErrorResponse(
 			req.ID, protocol.CodeInvalidParams,
-			fmt.Sprintf("unknown tool: %s", params.Name), nil,
+			fmt.Sprintf("%s", translator.T(ctx, "mcp_module_unknown_tool", map[string]any{
+				"name": params.Name,
+			})), nil,
 		)
 	}
 
@@ -237,7 +262,9 @@ func handleReadResource(
 	if !ok {
 		return protocol.NewErrorResponse(
 			req.ID, protocol.CodeInvalidParams,
-			fmt.Sprintf("unknown resource: %s", params.URI), nil,
+			fmt.Sprintf("%s", translator.T(ctx, "mcp_module_unknown_resource", map[string]any{
+				"uri": params.URI,
+			})), nil,
 		)
 	}
 
@@ -300,7 +327,9 @@ func handleGetPrompt(
 	if !ok {
 		return protocol.NewErrorResponse(
 			req.ID, protocol.CodeInvalidParams,
-			fmt.Sprintf("unknown prompt: %s", params.Name), nil,
+			fmt.Sprintf("%s", translator.T(ctx, "mcp_module_unknown_prompt", map[string]any{
+				"name": params.Name,
+			})), nil,
 		)
 	}
 

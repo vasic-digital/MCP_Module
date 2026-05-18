@@ -146,6 +146,13 @@ func TestNewErrorResponse(t *testing.T) {
 	}
 }
 
+// TestRPCError_Error asserts the post-round-122 i18n contract: the
+// default NoopTranslator returns the msgID verbatim (CONST-035
+// positive evidence — operator sees exactly which key would have
+// been rendered if a bundle were wired). Consuming projects that
+// wire a real Translator via SetTranslator get rich rendering; the
+// previous hardcoded `code=-32603 / data=details` format is now
+// supplied by the consumer's bundle, not by this package.
 func TestRPCError_Error(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -155,12 +162,12 @@ func TestRPCError_Error(t *testing.T) {
 		{
 			name:     "error without data",
 			err:      &RPCError{Code: CodeInternalError, Message: "internal"},
-			contains: "code=-32603",
+			contains: "mcp_module_rpc_error_no_data",
 		},
 		{
 			name:     "error with data",
 			err:      &RPCError{Code: CodeParseError, Message: "bad json", Data: "details"},
-			contains: "data=details",
+			contains: "mcp_module_rpc_error_with_data",
 		},
 	}
 

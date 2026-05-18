@@ -155,9 +155,14 @@ func TestProtocolErrorResponseIntegration(t *testing.T) {
 	assert.Equal(t, protocol.CodeMethodNotFound, errResp.Error.Code)
 	assert.Equal(t, "method not found", errResp.Error.Message)
 
+	// Round-122 i18n migration: Error() renders through the package-level
+	// Translator seam. The NoopTranslator default returns the msgID
+	// verbatim (mcp_module_rpc_error_no_data) — CONST-035 positive
+	// evidence the seam was actually consulted. Consuming projects wire
+	// a richer Translator via protocol.SetTranslator to get formatted
+	// output with code/message/data interpolation.
 	errStr := errResp.Error.Error()
-	assert.Contains(t, errStr, "rpc error")
-	assert.Contains(t, errStr, "-32601")
+	assert.Contains(t, errStr, "mcp_module_rpc_error_no_data")
 }
 
 func TestAdapterConfigMapIntegration(t *testing.T) {

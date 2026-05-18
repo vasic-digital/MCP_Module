@@ -3,9 +3,32 @@
 package protocol
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+
+	"digital.vasic.mcp/pkg/i18n"
 )
+
+// translator is the package-level message-resolution seam (CONST-046,
+// round-122). Defaults to NoopTranslator so production behaviour is
+// unchanged for any caller that has not wired a project-side
+// translator; consumers swap it via SetTranslator at startup.
+//
+// Per CONST-051(B) the seam is project-not-aware: this package never
+// imports a HelixCode-specific catalogue; the consuming project is
+// responsible for providing the real Translator implementation.
+var translator i18n.Translator = i18n.NoopTranslator{}
+
+// SetTranslator wires a project-side Translator. Callers MUST invoke it
+// at startup before issuing user-facing error returns; calling it
+// concurrently with request handling is not supported.
+func SetTranslator(t i18n.Translator) {
+	if t == nil {
+		t = i18n.NoopTranslator{}
+	}
+	translator = t
+}
 
 // JSONRPCVersion is the JSON-RPC protocol version used by MCP.
 const JSONRPCVersion = "2.0"
@@ -96,12 +119,26 @@ type RPCError struct {
 }
 
 // Error implements the error interface.
+//
+// The rendered wire string is resolved through the package-level
+// Translator seam (CONST-046, round-122). The NoopTranslator default
+// returns the msgID verbatim — operators see exactly which key failed
+// to resolve, satisfying CONST-035 positive-evidence semantics. A
+// consuming project may wire a richer Translator via SetTranslator
+// without modifying this package (CONST-051(B) decoupling).
 func (e *RPCError) Error() string {
+	ctx := context.Background()
 	if e.Data != nil {
-		return fmt.Sprintf("rpc error: code=%d message=%s data=%v",
-			e.Code, e.Message, e.Data)
+		return fmt.Sprintf("%s", translator.T(ctx, "mcp_module_rpc_error_with_data", map[string]any{
+			"code":    e.Code,
+			"message": e.Message,
+			"data":    fmt.Sprintf("%v", e.Data),
+		}))
 	}
-	return fmt.Sprintf("rpc error: code=%d message=%s", e.Code, e.Message)
+	return fmt.Sprintf("%s", translator.T(ctx, "mcp_module_rpc_error_no_data", map[string]any{
+		"code":    e.Code,
+		"message": e.Message,
+	}))
 }
 
 // Standard JSON-RPC 2.0 error codes.
