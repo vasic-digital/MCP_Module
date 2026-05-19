@@ -1,9 +1,18 @@
-# Binaries
+# Build artefacts (CONST-053 class 1)
+/bin/
+/build/
+/dist/
+/out/
+target/
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
+*.a
+*.o
+*.class
+*.pyc
 
 # Test binary
 *.test
@@ -15,20 +24,48 @@
 go.work
 go.work.sum
 
-# IDE
-.idea/
-.vscode/
+# Cache files (CONST-053 class 2)
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+node_modules/
+.cache/
+.gradle/
+
+# Temp files (CONST-053 class 3)
+*.tmp
 *.swp
 *.swo
 *~
-
-# OS
 .DS_Store
 Thumbs.db
+*.orig
+*.rej
 
-# Coverage
+# Sensitive-data files (CONST-053 class 4 / CONST-042)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+id_rsa*
+id_ed25519*
+.netrc
+secrets/
+api_keys.sh
+
+# Generated reports / logs (CONST-053 class 5)
+*.log
 coverage.html
 coverage.out
+htmlcov/
+
+# OS/IDE personal state (CONST-053 class 6)
+.idea/
+.history/
+.vscode/
 
 # Vendor (if not committed)
 # vendor/
