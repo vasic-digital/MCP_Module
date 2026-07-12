@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
@@ -208,23 +209,64 @@ func (a *DockerAdapter) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to start container: %w", err)
 	}
 
-	a.containerID = string(output)
+	a.setContainerID(string(output))
 	a.SetState(StateRunning)
 	return nil
 }
 
+// setContainerID stores the started container's id under the adapter lock.
+func (a *DockerAdapter) setContainerID(id string) {
+	a.mu.Lock()
+	a.containerID = id
+	a.mu.Unlock()
+}
+
+// getContainerID reads the container id under the adapter lock.
+func (a *DockerAdapter) getContainerID() string {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.containerID
+}
+
 // Stop stops the Docker container.
+//
+// HXC-141: Stop is an idempotent, safe no-op when the container was never
+// started (containerID unset) or no longer exists ("no such container"), so a
+// caller expecting a benign no-op is never brought down by a spurious error
+// (or a nil-error dereference in a caller that assumed a non-nil error). A
+// genuine removal failure still surfaces as an error.
 func (a *DockerAdapter) Stop(ctx context.Context) error {
+	// Never started by this adapter -> nothing to remove -> safe no-op,
+	// runtime-independent (does not shell out at all).
+	if a.getContainerID() == "" {
+		a.SetState(StateStopped)
+		return nil
+	}
+
 	a.SetState(StateStopping)
 
 	cmd := exec.CommandContext(ctx, "docker", "rm", "-f", a.AdapterName)
-	if err := cmd.Run(); err != nil {
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		// A container that no longer exists is a benign no-op: the desired end
+		// state (container gone) already holds.
+		if isNoSuchContainer(output) {
+			a.SetState(StateStopped)
+			return nil
+		}
 		a.SetState(StateError)
 		return fmt.Errorf("failed to stop container: %w", err)
 	}
 
 	a.SetState(StateStopped)
 	return nil
+}
+
+// isNoSuchContainer reports whether docker/podman `rm` output indicates the
+// target container does not exist (a benign no-op for Stop). Both docker and
+// podman emit the "No such container" phrase; matched case-insensitively.
+func isNoSuchContainer(output []byte) bool {
+	return strings.Contains(strings.ToLower(string(output)), "no such container")
 }
 
 // HealthCheck checks if the container is healthy.

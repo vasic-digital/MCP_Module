@@ -800,9 +800,54 @@ func TestDockerAdapter_Stop_NotStarted(t *testing.T) {
 	defer cancel()
 
 	err := a.Stop(ctx)
-	// Stopping a non-existent container will fail
-	assert.Error(t, err)
-	assert.Equal(t, StateError, a.State())
+	// HXC-141: stopping an adapter whose container was never started is a
+	// safe, idempotent no-op — nothing to remove, so no error and end state
+	// StateStopped. (§11.4.120 reconciled from the pre-fix error expectation;
+	// §11.4.135 standing guard for the stop-before-start case.)
+	assert.NoError(t, err)
+	assert.Equal(t, StateStopped, a.State())
+}
+
+// TestDockerAdapter_isNoSuchContainer is a hermetic unit test for the
+// missing-container matcher used by Stop (HXC-141) — it needs no runtime.
+func TestDockerAdapter_isNoSuchContainer(t *testing.T) {
+	cases := []struct {
+		name   string
+		output string
+		want   bool
+	}{
+		{"docker-error", "Error response from daemon: No such container: foo", true},
+		{"docker-cli-error", "Error: No such container: foo", true},
+		{"lowercase", "error: no such container: foo", true},
+		{"unrelated-error", "Error: permission denied while trying to connect", false},
+		{"empty", "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, isNoSuchContainer([]byte(tc.output)))
+		})
+	}
+}
+
+// TestDockerAdapter_containerID_ConcurrentAccess proves HXC-141's containerID
+// access is race-safe: Stop now reads containerID (via getContainerID) and
+// Start writes it (via setContainerID), both under the adapter lock. Run under
+// -race, concurrent readers + writers must not race. (This test FAILs under
+// -race if containerID is accessed unguarded — the §1.1 guard for the mutex.)
+func TestDockerAdapter_containerID_ConcurrentAccess(t *testing.T) {
+	a := NewDockerAdapter(
+		"race-test",
+		config.ServerConfig{},
+		config.ContainerConfig{Image: "test"},
+	)
+	var wg sync.WaitGroup
+	for i := 0; i < 50; i++ {
+		wg.Add(2)
+		go func(i int) { defer wg.Done(); a.setContainerID(fmt.Sprintf("id-%d", i)) }(i)
+		go func() { defer wg.Done(); _ = a.getContainerID() }()
+	}
+	wg.Wait()
+	_ = a.getContainerID() // sanity read; -race cleanliness is the assertion
 }
 
 // ============================================================================
@@ -1286,7 +1331,14 @@ func TestStdioAdapter_Stop_ProcessKillError(t *testing.T) {
 }
 
 func TestDockerAdapter_Stop_ContainerDoesNotExist(t *testing.T) {
-	// Test Stop() error path when container doesn't exist
+	// HXC-141: stopping a container that does not exist is a graceful no-op.
+	// containerID is set so Stop reaches the docker `rm -f` path (bypassing the
+	// never-started short-circuit); the runtime reports the container is gone
+	// (docker emits "No such container"; podman-as-docker exits 0) and Stop
+	// treats that as success. Pre-fix this asserted an error and then
+	// dereferenced the error via err.Error() — which on the podman host (where
+	// the error is nil) panicked with a nil-pointer dereference: the reported
+	// HXC-141 crash. (§11.4.120 reconciled; §11.4.135 standing guard.)
 	a := NewDockerAdapter(
 		"nonexistent-container-stop-test",
 		config.ServerConfig{},
@@ -1294,15 +1346,14 @@ func TestDockerAdapter_Stop_ContainerDoesNotExist(t *testing.T) {
 			Image: "test",
 		},
 	)
+	a.setContainerID("nonexistent-container-stop-test-id")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Stop should fail because container doesn't exist
 	err := a.Stop(ctx)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to stop container")
-	assert.Equal(t, StateError, a.State())
+	assert.NoError(t, err)
+	assert.Equal(t, StateStopped, a.State())
 }
 
 func TestDockerAdapter_HealthCheck_HTTPRequestCreationError(t *testing.T) {
@@ -1498,7 +1549,10 @@ func TestDockerAdapter_Start_ContextTimeout(t *testing.T) {
 }
 
 func TestDockerAdapter_Stop_ContextTimeout(t *testing.T) {
-	// Test Stop with very short timeout
+	// Test Stop with a very short timeout. HXC-141: containerID is set so Stop
+	// reaches the docker exec path (bypassing the never-started no-op); the
+	// already-expired context makes the exec fail, a genuine removal failure
+	// that still surfaces as an error (context handling preserved).
 	a := NewDockerAdapter(
 		"stop-timeout-test",
 		config.ServerConfig{},
@@ -1506,6 +1560,7 @@ func TestDockerAdapter_Stop_ContextTimeout(t *testing.T) {
 			Image: "test",
 		},
 	)
+	a.setContainerID("stop-timeout-test-id")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
 	defer cancel()
